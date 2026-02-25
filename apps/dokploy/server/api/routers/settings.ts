@@ -17,6 +17,7 @@ import {
 	getLogCleanupStatus,
 	getUpdateData,
 	getWebServerSettings,
+	initializeCaddy,
 	IS_CLOUD,
 	parseRawConfig,
 	paths,
@@ -31,6 +32,7 @@ import {
 	readPorts,
 	recreateDirectory,
 	reloadDockerResource,
+	removeCaddyServices,
 	sendDockerCleanupNotifications,
 	setupGPUSupport,
 	spawnAsync,
@@ -921,4 +923,36 @@ export const settingsRouter = createTRPCRouter({
 		const ips = process.env.DOKPLOY_CLOUD_IPS?.split(",");
 		return ips;
 	}),
+
+	updateIngressProvider: adminProcedure
+		.input(
+			z.object({
+				ingressProvider: z.enum(["traefik", "caddy"]),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			if (IS_CLOUD) {
+				return true;
+			}
+
+			const settings = await getWebServerSettings();
+
+			if (input.ingressProvider === "caddy") {
+				// Retrieve the internal Redis URL for Caddy storage
+				const redisUrl =
+					process.env.REDIS_URL ||
+					`redis://dokploy-redis:${process.env.REDIS_PORT || 6379}`;
+
+				await initializeCaddy({ redisUrl });
+			} else {
+				// Switching back to Traefik: remove Caddy services
+				await removeCaddyServices();
+			}
+
+			await updateWebServerSettings({
+				ingressProvider: input.ingressProvider,
+			});
+
+			return true;
+		}),
 });
