@@ -431,3 +431,29 @@ export const createDefaultMiddlewares = () => {
 	mkdirSync(DYNAMIC_TRAEFIK_PATH, { recursive: true });
 	writeFileSync(middlewaresPath, yamlStr, "utf8");
 };
+
+/**
+ * Stop and remove the Traefik instance (service or standalone container).
+ * Used when switching the ingress provider away from Traefik so it frees
+ * ports 80/443 before the new provider starts.
+ */
+export const stopTraefikInstance = async (serverId?: string) => {
+	const docker = await getRemoteDocker(serverId);
+
+	// Try removing as a Swarm service first
+	try {
+		const service = docker.getService("dokploy-traefik");
+		await service.remove();
+		console.log("Traefik service removed ✅");
+		return;
+	} catch {}
+
+	// Fall back to standalone container
+	try {
+		const container = docker.getContainer("dokploy-traefik");
+		await container.remove({ force: true });
+		console.log("Traefik container removed ✅");
+	} catch {
+		// Already absent – nothing to do
+	}
+};

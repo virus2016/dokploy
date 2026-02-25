@@ -18,6 +18,7 @@ import {
 	getUpdateData,
 	getWebServerSettings,
 	initializeCaddy,
+	initializeStandaloneTraefik,
 	IS_CLOUD,
 	parseRawConfig,
 	paths,
@@ -38,6 +39,7 @@ import {
 	spawnAsync,
 	startLogCleanup,
 	stopLogCleanup,
+	stopTraefikInstance,
 	updateLetsEncryptEmail,
 	updateServerById,
 	updateServerTraefik,
@@ -935,9 +937,10 @@ export const settingsRouter = createTRPCRouter({
 				return true;
 			}
 
-			const settings = await getWebServerSettings();
-
 			if (input.ingressProvider === "caddy") {
+				// Stop Traefik first so it releases ports 80/443
+				await stopTraefikInstance();
+
 				// Retrieve the internal Redis URL for Caddy storage
 				const redisUrl =
 					process.env.REDIS_URL ||
@@ -945,8 +948,11 @@ export const settingsRouter = createTRPCRouter({
 
 				await initializeCaddy({ redisUrl });
 			} else {
-				// Switching back to Traefik: remove Caddy services
+				// Remove Caddy services so they release ports 80/443
 				await removeCaddyServices();
+
+				// Spin Traefik back up (standalone container, the default mode)
+				await initializeStandaloneTraefik();
 			}
 
 			await updateWebServerSettings({
