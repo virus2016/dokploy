@@ -13,6 +13,7 @@ import {
 	sendDokployRestartNotifications,
 	setupDirectories,
 } from "@dokploy/server";
+import { getWebServerSettings, updateWebServerSettings } from "@dokploy/server/services/web-server-settings";
 import { config } from "dotenv";
 import next from "next";
 import packageInfo from "../package.json";
@@ -64,6 +65,22 @@ void app.prepare().then(async () => {
 			await initCancelDeployments();
 			await initVolumeBackupsCronJobs();
 			await sendDokployRestartNotifications();
+
+			// If INGRESS_PROVIDER env var is set, sync it to the DB so the UI
+			// reflects the install-time choice.  Only writes when the env var is
+			// explicitly "caddy" so Traefik users are never affected.
+			const envProvider = process.env.INGRESS_PROVIDER;
+			if (envProvider === "caddy" || envProvider === "traefik") {
+				try {
+					await getWebServerSettings().then(() =>
+						updateWebServerSettings({
+							ingressProvider: envProvider as "traefik" | "caddy",
+						}),
+					);
+				} catch {
+					// Non-fatal – don't crash the server if the DB write fails
+				}
+			}
 		}
 
 		server.listen(PORT, HOST);
