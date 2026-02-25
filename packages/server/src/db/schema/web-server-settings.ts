@@ -1,9 +1,21 @@
 import { relations } from "drizzle-orm";
-import { boolean, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	jsonb,
+	pgEnum,
+	pgTable,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { certificateType } from "./shared";
+
+export const ingressProvider = pgEnum("ingressProvider", [
+	"traefik",
+	"caddy",
+]);
 
 export const webServerSettings = pgTable("webServerSettings", {
 	id: text("id")
@@ -66,6 +78,10 @@ export const webServerSettings = pgTable("webServerSettings", {
 				},
 			},
 		}),
+	// Ingress provider selection (traefik or caddy)
+	ingressProvider: ingressProvider("ingressProvider")
+		.notNull()
+		.default("traefik"),
 	// Cache Cleanup Configuration
 	cleanupCacheApplications: boolean("cleanupCacheApplications")
 		.notNull()
@@ -125,6 +141,7 @@ export const apiUpdateWebServerSettings = createSchema.partial().extend({
 	cleanupCacheApplications: z.boolean().optional(),
 	cleanupCacheOnPreviews: z.boolean().optional(),
 	cleanupCacheOnCompose: z.boolean().optional(),
+	ingressProvider: z.enum(["traefik", "caddy"]).optional(),
 });
 
 export const apiAssignDomain = z
