@@ -1,5 +1,8 @@
+import { db } from "@dokploy/server/db";
+import { domains } from "@dokploy/server/db/schema";
 import type { Security } from "@dokploy/server/services/security";
 import * as bcrypt from "bcrypt";
+import { eq } from "drizzle-orm";
 import type { ApplicationNested } from "../builders";
 import {
 	getCaddyControllerLabels,
@@ -25,6 +28,15 @@ const securityLabelKeyPrefix = (domainKey: number) =>
 	`caddy_${domainKey}.basicauth`;
 
 /**
+ * Get all domains that belong to an application.
+ */
+const getApplicationDomains = async (applicationId: string) => {
+	return db.query.domains.findMany({
+		where: eq(domains.applicationId, applicationId),
+	});
+};
+
+/**
  * Add a basic-auth user to every domain belonging to the application.
  */
 export const createCaddySecurityMiddleware = async (
@@ -33,10 +45,11 @@ export const createCaddySecurityMiddleware = async (
 ): Promise<void> => {
 	const { serverId } = application;
 	const labels = await getCaddyControllerLabels(serverId);
+	const appDomains = await getApplicationDomains(application.applicationId);
 
 	const hash = await bcrypt.hash(data.password, 10);
 
-	for (const domain of application.domains ?? []) {
+	for (const domain of appDomains) {
 		const prefix = securityLabelKeyPrefix(domain.uniqueConfigKey);
 		// Caddy basicauth directive: `basicauth /* { <user> <hash> }`
 		labels[prefix] = "/* bcrypt";
@@ -55,8 +68,9 @@ export const removeCaddySecurityMiddleware = async (
 ): Promise<void> => {
 	const { serverId } = application;
 	const labels = await getCaddyControllerLabels(serverId);
+	const appDomains = await getApplicationDomains(application.applicationId);
 
-	for (const domain of application.domains ?? []) {
+	for (const domain of appDomains) {
 		const prefix = securityLabelKeyPrefix(domain.uniqueConfigKey);
 		delete labels[`${prefix}.${data.username}`];
 

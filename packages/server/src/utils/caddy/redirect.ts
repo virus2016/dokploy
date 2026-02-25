@@ -1,4 +1,7 @@
+import { db } from "@dokploy/server/db";
+import { domains } from "@dokploy/server/db/schema";
 import type { Redirect } from "@dokploy/server/services/redirect";
+import { eq } from "drizzle-orm";
 import type { ApplicationNested } from "../builders";
 import {
 	getCaddyControllerLabels,
@@ -25,6 +28,15 @@ const redirectLabelKey = (
 ) => `caddy_${domainKey}.redir_${uniqueConfigKey}`;
 
 /**
+ * Get all domains that belong to an application.
+ */
+const getApplicationDomains = async (applicationId: string) => {
+	return db.query.domains.findMany({
+		where: eq(domains.applicationId, applicationId),
+	});
+};
+
+/**
  * Add redirect labels to the Caddy controller for every domain belonging
  * to the application.
  */
@@ -34,9 +46,10 @@ export const createCaddyRedirectMiddleware = async (
 ): Promise<void> => {
 	const { serverId } = application;
 	const labels = await getCaddyControllerLabels(serverId);
+	const appDomains = await getApplicationDomains(application.applicationId);
 
 	// Find all domain site-blocks for this application's domains
-	for (const domain of application.domains ?? []) {
+	for (const domain of appDomains) {
 		const key = redirectLabelKey(
 			application.appName,
 			data.uniqueConfigKey,
@@ -69,8 +82,9 @@ export const removeCaddyRedirectMiddleware = async (
 ): Promise<void> => {
 	const { serverId } = application;
 	const labels = await getCaddyControllerLabels(serverId);
+	const appDomains = await getApplicationDomains(application.applicationId);
 
-	for (const domain of application.domains ?? []) {
+	for (const domain of appDomains) {
 		const key = redirectLabelKey(
 			application.appName,
 			data.uniqueConfigKey,
