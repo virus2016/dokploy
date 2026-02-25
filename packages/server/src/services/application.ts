@@ -83,6 +83,7 @@ export const createApplication = async (
 		}
 
 		if (process.env.NODE_ENV === "development") {
+			// Traefik uses file-based config; Caddy uses Docker labels (no file needed)
 			createTraefikConfig(newApplication.appName);
 		}
 

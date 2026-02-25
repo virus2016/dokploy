@@ -12,6 +12,7 @@ import { removeService } from "../utils/docker/utils";
 import { removeDirectoryCode } from "../utils/filesystem/directory";
 import { authGithub } from "../utils/providers/github";
 import { removeTraefikConfig } from "../utils/traefik/application";
+import { removeCaddyDomain } from "../utils/caddy/domain";
 import { manageCaddyDomain } from "../utils/caddy/domain";
 import { manageDomain } from "../utils/traefik/domain";
 import { findApplicationById } from "./application";
@@ -59,6 +60,8 @@ export const removePreviewDeployment = async (previewDeploymentId: string) => {
 		);
 
 		application.appName = previewDeployment.appName;
+		const settings = await getWebServerSettings();
+		const isCaddy = settings?.ingressProvider === "caddy";
 		const cleanupOperations = [
 			async () =>
 				await removeService(application?.appName, application?.serverId),
@@ -69,8 +72,21 @@ export const removePreviewDeployment = async (previewDeploymentId: string) => {
 				),
 			async () =>
 				await removeDirectoryCode(application?.appName, application?.serverId),
-			async () =>
-				await removeTraefikConfig(application?.appName, application?.serverId),
+			async () => {
+				if (isCaddy) {
+					if (previewDeployment.domain) {
+						await removeCaddyDomain(
+							application,
+							previewDeployment.domain.uniqueConfigKey,
+						);
+					}
+				} else {
+					await removeTraefikConfig(
+						application?.appName,
+						application?.serverId,
+					);
+				}
+			},
 			async () =>
 				await db
 					.delete(previewDeployments)
