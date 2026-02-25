@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { db } from "@dokploy/server/db";
 import { getWebServerSettings } from "@dokploy/server/services/web-server-settings";
 import { generateRandomDomain } from "@dokploy/server/templates";
+import { manageCaddyDomain } from "@dokploy/server/utils/caddy/domain";
 import { manageDomain } from "@dokploy/server/utils/traefik/domain";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
@@ -33,7 +34,12 @@ export const createDomain = async (input: typeof apiCreateDomain._type) => {
 
 		if (domain.applicationId) {
 			const application = await findApplicationById(domain.applicationId);
-			await manageDomain(application, domain);
+			const settings = await getWebServerSettings();
+			if (settings?.ingressProvider === "caddy") {
+				await manageCaddyDomain(application, domain);
+			} else {
+				await manageDomain(application, domain);
+			}
 		}
 
 		return domain;

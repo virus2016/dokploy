@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { paths } from "@dokploy/server/constants";
 import type { Compose } from "@dokploy/server/services/compose";
 import type { Domain } from "@dokploy/server/services/domain";
+import { getWebServerSettings } from "@dokploy/server/services/web-server-settings";
 import { parse, stringify } from "yaml";
+import { createCaddyDomainLabels } from "../caddy/labels";
 import { execAsyncRemote } from "../process/execAsync";
 import { cloneBitbucketRepository } from "../providers/bitbucket";
 import { cloneGitRepository } from "../providers/git";
@@ -161,6 +163,10 @@ export const addDomainToCompose = async (
 		result = randomized;
 	}
 
+	// Determine the active ingress provider
+	const settings = await getWebServerSettings();
+	const isCaddy = settings?.ingressProvider === "caddy";
+
 	for (const domain of domains) {
 		const { serviceName, https } = domain;
 		if (!serviceName) {
@@ -172,10 +178,15 @@ export const addDomainToCompose = async (
 			);
 		}
 
-		const httpLabels = createDomainLabels(appName, domain, "web");
-		if (https) {
-			const httpsLabels = createDomainLabels(appName, domain, "websecure");
-			httpLabels.push(...httpsLabels);
+		let domainLabels: string[];
+		if (isCaddy) {
+			domainLabels = createCaddyDomainLabels(appName, domain);
+		} else {
+			domainLabels = createDomainLabels(appName, domain, "web");
+			if (https) {
+				const httpsLabels = createDomainLabels(appName, domain, "websecure");
+				domainLabels.push(...httpsLabels);
+			}
 		}
 
 		let labels: DefinitionsService["labels"] = [];
@@ -198,19 +209,26 @@ export const addDomainToCompose = async (
 		}
 
 		if (Array.isArray(labels)) {
-			if (!labels.includes("traefik.enable=true")) {
-				labels.unshift("traefik.enable=true");
-			}
-			labels.unshift(...httpLabels);
-			if (!compose.isolatedDeployment) {
-				if (compose.composeType === "docker-compose") {
-					if (!labels.includes("traefik.docker.network=dokploy-network")) {
-						labels.unshift("traefik.docker.network=dokploy-network");
-					}
-				} else {
-					// Stack Case
-					if (!labels.includes("traefik.swarm.network=dokploy-network")) {
-						labels.unshift("traefik.swarm.network=dokploy-network");
+			if (isCaddy) {
+				// Caddy labels – no "enable" or network labels needed;
+				// caddy-docker-proxy discovers services via
+				// CADDY_INGRESS_NETWORKS
+				labels.unshift(...domainLabels);
+			} else {
+				if (!labels.includes("traefik.enable=true")) {
+					labels.unshift("traefik.enable=true");
+				}
+				labels.unshift(...domainLabels);
+				if (!compose.isolatedDeployment) {
+					if (compose.composeType === "docker-compose") {
+						if (!labels.includes("traefik.docker.network=dokploy-network")) {
+							labels.unshift("traefik.docker.network=dokploy-network");
+						}
+					} else {
+						// Stack Case
+						if (!labels.includes("traefik.swarm.network=dokploy-network")) {
+							labels.unshift("traefik.swarm.network=dokploy-network");
+						}
 					}
 				}
 			}

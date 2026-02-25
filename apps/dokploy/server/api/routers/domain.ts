@@ -9,7 +9,9 @@ import {
 	findServerById,
 	generateTraefikMeDomain,
 	getWebServerSettings,
+	manageCaddyDomain,
 	manageDomain,
+	removeCaddyDomain,
 	removeDomain,
 	removeDomainById,
 	updateDomainById,
@@ -159,9 +161,15 @@ export const domainRouter = createTRPCRouter({
 			}
 			const result = await updateDomainById(input.domainId, input);
 			const domain = await findDomainById(input.domainId);
+			const settings = await getWebServerSettings();
+			const isCaddy = settings?.ingressProvider === "caddy";
 			if (domain.applicationId) {
 				const application = await findApplicationById(domain.applicationId);
-				await manageDomain(application, domain);
+				if (isCaddy) {
+					await manageCaddyDomain(application, domain);
+				} else {
+					await manageDomain(application, domain);
+				}
 			} else if (domain.previewDeploymentId) {
 				const previewDeployment = await findPreviewDeploymentById(
 					domain.previewDeploymentId,
@@ -170,7 +178,11 @@ export const domainRouter = createTRPCRouter({
 					previewDeployment.applicationId,
 				);
 				application.appName = previewDeployment.appName;
-				await manageDomain(application, domain);
+				if (isCaddy) {
+					await manageCaddyDomain(application, domain);
+				} else {
+					await manageDomain(application, domain);
+				}
 			}
 			return result;
 		}),
@@ -232,7 +244,12 @@ export const domainRouter = createTRPCRouter({
 
 			if (domain.applicationId) {
 				const application = await findApplicationById(domain.applicationId);
-				await removeDomain(application, domain.uniqueConfigKey);
+				const settings = await getWebServerSettings();
+				if (settings?.ingressProvider === "caddy") {
+					await removeCaddyDomain(application, domain.uniqueConfigKey);
+				} else {
+					await removeDomain(application, domain.uniqueConfigKey);
+				}
 			}
 
 			return result;

@@ -12,6 +12,7 @@ import { removeService } from "../utils/docker/utils";
 import { removeDirectoryCode } from "../utils/filesystem/directory";
 import { authGithub } from "../utils/providers/github";
 import { removeTraefikConfig } from "../utils/traefik/application";
+import { manageCaddyDomain } from "../utils/caddy/domain";
 import { manageDomain } from "../utils/traefik/domain";
 import { findApplicationById } from "./application";
 import { removeDeploymentsByPreviewDeploymentId } from "./deployment";
@@ -190,7 +191,12 @@ export const createPreviewDeployment = async (
 
 	application.appName = appName;
 
-	await manageDomain(application, newDomain);
+	const settings = await getWebServerSettings();
+	if (settings?.ingressProvider === "caddy") {
+		await manageCaddyDomain(application, newDomain);
+	} else {
+		await manageDomain(application, newDomain);
+	}
 
 	await db
 		.update(previewDeployments)

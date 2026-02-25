@@ -3,16 +3,19 @@ import {
 	checkServiceAccess,
 	clearOldDeployments,
 	createApplication,
+	deleteAllCaddyMiddlewares,
 	deleteAllMiddlewares,
 	findApplicationById,
 	findEnvironmentById,
 	findGitProviderById,
 	findProjectById,
 	getApplicationStats,
+	getWebServerSettings,
 	IS_CLOUD,
 	mechanizeDockerContainer,
 	readConfig,
 	readRemoteConfig,
+	removeAllCaddyLabels,
 	removeDeployments,
 	removeDirectoryCode,
 	removeMonitoringDirectory,
@@ -252,8 +255,17 @@ export const applicationRouter = createTRPCRouter({
 				}
 			}
 
+			const settings = await getWebServerSettings();
+			const isCaddy = settings?.ingressProvider === "caddy";
+
 			const cleanupOperations = [
-				async () => await deleteAllMiddlewares(application),
+				async () => {
+					if (isCaddy) {
+						await deleteAllCaddyMiddlewares(application);
+					} else {
+						await deleteAllMiddlewares(application);
+					}
+				},
 				async () => await removeDeployments(application),
 				async () =>
 					await removeDirectoryCode(application.appName, application.serverId),

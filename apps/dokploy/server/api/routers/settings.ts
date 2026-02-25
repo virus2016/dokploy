@@ -40,8 +40,10 @@ import {
 	startLogCleanup,
 	stopLogCleanup,
 	stopTraefikInstance,
+	updateCaddyLetsEncryptEmail,
 	updateLetsEncryptEmail,
 	updateServerById,
+	updateServerCaddy,
 	updateServerTraefik,
 	updateWebServerSettings,
 	writeConfig,
@@ -260,9 +262,16 @@ export const settingsRouter = createTRPCRouter({
 				});
 			}
 
-			updateServerTraefik(settings, input.host);
-			if (input.letsEncryptEmail) {
-				updateLetsEncryptEmail(input.letsEncryptEmail);
+			if (settings.ingressProvider === "caddy") {
+				await updateServerCaddy(settings, input.host);
+				if (input.letsEncryptEmail) {
+					await updateCaddyLetsEncryptEmail(input.letsEncryptEmail);
+				}
+			} else {
+				updateServerTraefik(settings, input.host);
+				if (input.letsEncryptEmail) {
+					updateLetsEncryptEmail(input.letsEncryptEmail);
+				}
 			}
 
 			return settings;

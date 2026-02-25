@@ -1,5 +1,11 @@
 import { db } from "@dokploy/server/db";
 import { type apiCreateRedirect, redirects } from "@dokploy/server/db/schema";
+import { getWebServerSettings } from "@dokploy/server/services/web-server-settings";
+import {
+	createCaddyRedirectMiddleware,
+	removeCaddyRedirectMiddleware,
+	updateCaddyRedirectMiddleware,
+} from "@dokploy/server/utils/caddy/redirect";
 import {
 	createRedirectMiddleware,
 	removeRedirectMiddleware,
@@ -46,7 +52,12 @@ export const createRedirect = async (
 
 			const application = await findApplicationById(redirect.applicationId);
 
-			createRedirectMiddleware(application, redirect);
+			const settings = await getWebServerSettings();
+			if (settings?.ingressProvider === "caddy") {
+				await createCaddyRedirectMiddleware(application, redirect);
+			} else {
+				createRedirectMiddleware(application, redirect);
+			}
 		});
 
 		return true;
@@ -76,7 +87,12 @@ export const removeRedirectById = async (redirectId: string) => {
 
 		const application = await findApplicationById(response.applicationId);
 
-		await removeRedirectMiddleware(application, response);
+		const settings = await getWebServerSettings();
+		if (settings?.ingressProvider === "caddy") {
+			await removeCaddyRedirectMiddleware(application, response);
+		} else {
+			await removeRedirectMiddleware(application, response);
+		}
 
 		return response;
 	} catch (error) {
@@ -110,7 +126,12 @@ export const updateRedirectById = async (
 		}
 		const application = await findApplicationById(redirect.applicationId);
 
-		await updateRedirectMiddleware(application, redirect);
+		const settings = await getWebServerSettings();
+		if (settings?.ingressProvider === "caddy") {
+			await updateCaddyRedirectMiddleware(application, redirect);
+		} else {
+			await updateRedirectMiddleware(application, redirect);
+		}
 
 		return redirect;
 	} catch (error) {
