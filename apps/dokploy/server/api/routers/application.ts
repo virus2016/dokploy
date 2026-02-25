@@ -274,8 +274,13 @@ export const applicationRouter = createTRPCRouter({
 						application.appName,
 						application.serverId,
 					),
-				async () =>
-					await removeTraefikConfig(application.appName, application.serverId),
+				async () => {
+					if (isCaddy) {
+						await removeAllCaddyLabels(application.serverId);
+					} else {
+						await removeTraefikConfig(application.appName, application.serverId);
+					}
+				},
 				async () =>
 					await removeService(application?.appName, application.serverId),
 			];

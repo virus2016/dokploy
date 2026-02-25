@@ -57,10 +57,6 @@ export const buildCaddyLabelsForDomain = (
 	const needsInternalPath =
 		internalPath && internalPath !== "/" && internalPath.startsWith("/");
 
-	// Collect redirect middleware names from the application
-	const redirects = app?.redirects ?? [];
-	const securityEntries = app?.security ?? [];
-
 	if (!hasPath && !needsStrip && !needsInternalPath) {
 		// Simple case: no path manipulation
 		labels[prefix] = siteAddress;
@@ -98,17 +94,6 @@ export const buildCaddyLabelsForDomain = (
 			labels[prefix] = `http://${punycodeHost}`;
 		}
 	}
-
-	// Basic auth
-	if (securityEntries.length > 0) {
-		// Basic auth is managed globally on the controller via the security
-		// utility; individual domain labels don't need to carry it here because
-		// Caddy applies directives to the whole site block.
-	}
-
-	// Redirect directives (regex-based redirects via Caddy's `redir`)
-	// These are managed separately via the redirect utility module to match
-	// the Traefik pattern of per-redirect middleware entries.
 
 	return labels;
 };

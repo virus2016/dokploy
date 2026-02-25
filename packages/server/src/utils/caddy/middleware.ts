@@ -1,4 +1,7 @@
+import { db } from "@dokploy/server/db";
+import { domains } from "@dokploy/server/db/schema";
 import type { Domain } from "@dokploy/server/services/domain";
+import { eq } from "drizzle-orm";
 import type { ApplicationNested } from "../builders";
 import {
 	getCaddyControllerLabels,
@@ -37,15 +40,26 @@ export const removeCaddyPathMiddlewares = async (
 };
 
 /**
+ * Get all domains that belong to an application.
+ */
+const getApplicationDomains = async (applicationId: string) => {
+	return db.query.domains.findMany({
+		where: eq(domains.applicationId, applicationId),
+	});
+};
+
+/**
  * Delete all Caddy middlewares (security + redirect) for an application.
  *
  * Removes labels from the Caddy controller that match the application's
- * security and redirect keys.
+ * security and redirect keys. Security labels use the pattern
+ * `caddy_{domainKey}.basicauth[.{username}]` and redirect labels use
+ * `caddy_{domainKey}.redir_{redirectKey}`.
  */
 export const deleteAllCaddyMiddlewares = async (
 	application: ApplicationNested,
 ): Promise<void> => {
-	const { security, appName, redirects, serverId } = application;
+	const { security, redirects, serverId } = application;
 
 	if (security.length === 0 && redirects.length === 0) {
 		return;
@@ -53,24 +67,25 @@ export const deleteAllCaddyMiddlewares = async (
 
 	const labels = await getCaddyControllerLabels(serverId);
 	const updated = { ...labels };
+	const appDomains = await getApplicationDomains(application.applicationId);
 
-	// Remove security labels
-	if (security.length > 0) {
-		const secPrefix = `caddy_auth_${appName}`;
-		for (const key of Object.keys(updated)) {
-			if (key === secPrefix || key.startsWith(`${secPrefix}.`)) {
-				delete updated[key];
+	for (const domain of appDomains) {
+		const domainKey = domain.uniqueConfigKey;
+
+		// Remove security labels: caddy_{domainKey}.basicauth[.*]
+		if (security.length > 0) {
+			const secPrefix = `caddy_${domainKey}.basicauth`;
+			for (const key of Object.keys(updated)) {
+				if (key === secPrefix || key.startsWith(`${secPrefix}.`)) {
+					delete updated[key];
+				}
 			}
 		}
-	}
 
-	// Remove redirect labels
-	for (const redirect of redirects) {
-		const redirPrefix = `caddy_redir_${redirect.uniqueConfigKey}`;
-		for (const key of Object.keys(updated)) {
-			if (key === redirPrefix || key.startsWith(`${redirPrefix}.`)) {
-				delete updated[key];
-			}
+		// Remove redirect labels: caddy_{domainKey}.redir_{redirectKey}
+		for (const redirect of redirects) {
+			const redirKey = `caddy_${domainKey}.redir_${redirect.uniqueConfigKey}`;
+			delete updated[redirKey];
 		}
 	}
 

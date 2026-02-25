@@ -122,6 +122,22 @@ describe("createCaddyDomainLabels", () => {
 		const labels = createCaddyDomainLabels(appName, domain);
 		expect(labels).toContain("caddy_1=http://example.com");
 	});
+
+	it("should treat path '/' with stripPath as simple route (no path handling)", () => {
+		const domain = {
+			...baseDomain,
+			path: "/",
+			stripPath: true,
+		};
+		const labels = createCaddyDomainLabels(appName, domain);
+		// path "/" is treated as no path, so stripPath should be ignored
+		expect(labels).toContain("caddy_1=http://example.com");
+		expect(labels).toContain("caddy_1.reverse_proxy={{upstreams 8080}}");
+		// Should NOT have any handle/matcher labels
+		expect(labels.some((l) => l.includes("handle"))).toBe(false);
+		expect(labels.some((l) => l.includes("@match"))).toBe(false);
+		expect(labels.some((l) => l.includes("strip_prefix"))).toBe(false);
+	});
 });
 
 describe("removeCaddyLabelsForDomain", () => {

@@ -56,7 +56,7 @@ export const createRedirect = async (
 			if (settings?.ingressProvider === "caddy") {
 				await createCaddyRedirectMiddleware(application, redirect);
 			} else {
-				createRedirectMiddleware(application, redirect);
+				await createRedirectMiddleware(application, redirect);
 			}
 		});
 
