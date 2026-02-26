@@ -6,6 +6,7 @@ import {
 	deleteAllCaddyMiddlewares,
 	deleteAllMiddlewares,
 	findApplicationById,
+	findDomainsByApplicationId,
 	findEnvironmentById,
 	findGitProviderById,
 	findProjectById,
@@ -15,7 +16,7 @@ import {
 	mechanizeDockerContainer,
 	readConfig,
 	readRemoteConfig,
-	removeAllCaddyLabels,
+	removeCaddyLabelsForApp,
 	removeDeployments,
 	removeDirectoryCode,
 	removeMonitoringDirectory,
@@ -241,6 +242,18 @@ export const applicationRouter = createTRPCRouter({
 				});
 			}
 
+			const settings = await getWebServerSettings();
+			const isCaddy = settings?.ingressProvider === "caddy";
+
+			// Fetch domain keys before the cascade delete removes them
+			let domainKeys: number[] = [];
+			if (isCaddy) {
+				const appDomains = await findDomainsByApplicationId(
+					input.applicationId,
+				);
+				domainKeys = appDomains.map((d) => d.uniqueConfigKey);
+			}
+
 			const result = await db
 				.delete(applications)
 				.where(eq(applications.applicationId, input.applicationId))
@@ -254,9 +267,6 @@ export const applicationRouter = createTRPCRouter({
 					}
 				}
 			}
-
-			const settings = await getWebServerSettings();
-			const isCaddy = settings?.ingressProvider === "caddy";
 
 			const cleanupOperations = [
 				async () => {
@@ -276,7 +286,7 @@ export const applicationRouter = createTRPCRouter({
 					),
 				async () => {
 					if (isCaddy) {
-						await removeAllCaddyLabels(application.serverId);
+						await removeCaddyLabelsForApp(domainKeys, application.serverId);
 					} else {
 						await removeTraefikConfig(application.appName, application.serverId);
 					}

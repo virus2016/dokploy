@@ -37,6 +37,7 @@ export const buildCaddyLabelsForDomain = (
 		https,
 		uniqueConfigKey,
 		certificateType,
+		customCertResolver,
 		path,
 		stripPath,
 		internalPath,
@@ -89,6 +90,10 @@ export const buildCaddyLabelsForDomain = (
 		if (certificateType === "letsencrypt") {
 			// Caddy uses ACME by default; explicit email can be set via
 			// global options. Nothing extra needed per-site.
+		} else if (certificateType === "custom" && customCertResolver) {
+			// Custom cert resolver – Caddy supports issuer configuration
+			// via the tls directive: `tls { issuer <name> }`
+			labels[`${prefix}.tls`] = customCertResolver;
 		} else if (certificateType === "none") {
 			// Force plain HTTP – override site address
 			labels[prefix] = `http://${punycodeHost}`;
@@ -115,6 +120,7 @@ export const createCaddyDomainLabels = (
 		https,
 		uniqueConfigKey,
 		certificateType,
+		customCertResolver,
 		path,
 		stripPath,
 		internalPath,
@@ -161,9 +167,14 @@ export const createCaddyDomainLabels = (
 		labels.push(`${prefix}.handle=${matcherName}`);
 	}
 
-	if (https && certificateType === "none") {
-		// Override to force HTTP only
-		labels[0] = `${prefix}=http://${punycodeHost}`;
+	// TLS / certificate configuration
+	if (https) {
+		if (certificateType === "custom" && customCertResolver) {
+			labels.push(`${prefix}.tls=${customCertResolver}`);
+		} else if (certificateType === "none") {
+			// Override to force HTTP only
+			labels[0] = `${prefix}=http://${punycodeHost}`;
+		}
 	}
 
 	return labels;

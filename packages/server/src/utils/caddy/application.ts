@@ -1,4 +1,5 @@
 import { getRemoteDocker } from "../servers/remote-docker";
+import { caddyLabelPrefix, removeCaddyLabelsForDomain } from "./labels";
 
 const CADDY_CONTROLLER_NAME = "dokploy-caddy-controller";
 
@@ -59,4 +60,27 @@ export const removeAllCaddyLabels = async (
 		}
 	}
 	await updateCaddyControllerLabels(cleaned, serverId);
+};
+
+/**
+ * Remove Caddy labels for a specific set of domain uniqueConfigKeys.
+ *
+ * Unlike `removeAllCaddyLabels` which strips every caddy label, this
+ * only removes labels belonging to the given domains – keeping routing
+ * intact for other applications.
+ *
+ * The caller must supply the domain keys *before* deleting the
+ * application from the database (domain rows are cascade-deleted).
+ */
+export const removeCaddyLabelsForApp = async (
+	domainKeys: number[],
+	serverId?: string | null,
+): Promise<void> => {
+	if (domainKeys.length === 0) return;
+
+	let labels = await getCaddyControllerLabels(serverId);
+	for (const key of domainKeys) {
+		labels = removeCaddyLabelsForDomain(labels, key);
+	}
+	await updateCaddyControllerLabels(labels, serverId);
 };

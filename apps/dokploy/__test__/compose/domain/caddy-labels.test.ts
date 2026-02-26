@@ -123,6 +123,18 @@ describe("createCaddyDomainLabels", () => {
 		expect(labels).toContain("caddy_1=http://example.com");
 	});
 
+	it("should add tls label for custom certificate resolver", () => {
+		const domain = {
+			...baseDomain,
+			https: true,
+			certificateType: "custom" as const,
+			customCertResolver: "myresolver",
+		};
+		const labels = createCaddyDomainLabels(appName, domain);
+		expect(labels).toContain("caddy_1=example.com");
+		expect(labels).toContain("caddy_1.tls=myresolver");
+	});
+
 	it("should treat path '/' with stripPath as simple route (no path handling)", () => {
 		const domain = {
 			...baseDomain,

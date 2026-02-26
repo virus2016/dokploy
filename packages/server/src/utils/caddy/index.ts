@@ -7,6 +7,7 @@ export {
 	getCaddyControllerLabels,
 	updateCaddyControllerLabels,
 	removeAllCaddyLabels,
+	removeCaddyLabelsForApp,
 } from "./application";
 
 export {
