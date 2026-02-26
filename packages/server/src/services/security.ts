@@ -1,5 +1,10 @@
 import { db } from "@dokploy/server/db";
 import { type apiCreateSecurity, security } from "@dokploy/server/db/schema";
+import { getWebServerSettings } from "@dokploy/server/services/web-server-settings";
+import {
+	createCaddySecurityMiddleware,
+	removeCaddySecurityMiddleware,
+} from "@dokploy/server/utils/caddy/security";
 import {
 	createSecurityMiddleware,
 	removeSecurityMiddleware,
@@ -44,7 +49,12 @@ export const createSecurity = async (
 					message: "Error creating the security",
 				});
 			}
-			await createSecurityMiddleware(application, securityResponse);
+			const settings = await getWebServerSettings();
+			if (settings?.ingressProvider === "caddy") {
+				await createCaddySecurityMiddleware(application, securityResponse);
+			} else {
+				await createSecurityMiddleware(application, securityResponse);
+			}
 			return true;
 		});
 	} catch (error) {
@@ -73,7 +83,12 @@ export const deleteSecurityById = async (securityId: string) => {
 
 		const application = await findApplicationById(result.applicationId);
 
-		await removeSecurityMiddleware(application, result);
+		const settings = await getWebServerSettings();
+		if (settings?.ingressProvider === "caddy") {
+			await removeCaddySecurityMiddleware(application, result);
+		} else {
+			await removeSecurityMiddleware(application, result);
+		}
 		return result;
 	} catch (error) {
 		const message =

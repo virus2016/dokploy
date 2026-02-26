@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { paths } from "@dokploy/server/constants";
+import { getWebServerSettings } from "@dokploy/server/services/web-server-settings";
 import type { InferResultType } from "@dokploy/server/types/with";
 import boxen from "boxen";
 import { quote } from "shell-quote";
@@ -24,6 +25,14 @@ export const getBuildComposeCommand = async (compose: ComposeNested) => {
 	const exportEnvCommand = getExportEnvCommand(compose);
 
 	const newCompose = await writeDomainsToCompose(compose, domains);
+
+	// Determine the ingress proxy container name for isolated deployments
+	const settings = await getWebServerSettings();
+	const ingressContainer =
+		settings?.ingressProvider === "caddy"
+			? "dokploy-caddy-controller"
+			: "dokploy-traefik";
+
 	const logContent = `
 App Name: ${appName}
 Build Compose 🐳
@@ -55,7 +64,7 @@ Compose Type: ${composeType} ✅`;
 
 		${compose.isolatedDeployment ? `docker network inspect ${compose.appName} >/dev/null 2>&1 || docker network create --attachable ${compose.appName}` : ""}
 		env -i PATH="$PATH" ${exportEnvCommand} docker ${command.split(" ").join(" ")} 2>&1 || { echo "Error: ❌ Docker command failed"; exit 1; }
-		${compose.isolatedDeployment ? `docker network connect ${compose.appName} $(docker ps --filter "name=dokploy-traefik" -q) >/dev/null 2>&1` : ""}
+		${compose.isolatedDeployment ? `docker network connect ${compose.appName} $(docker ps --filter "name=${ingressContainer}" -q) >/dev/null 2>&1` : ""}
 	
 		echo "Docker Compose Deployed: ✅";
 	} || {
